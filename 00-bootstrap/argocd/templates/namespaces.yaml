@@ -1,0 +1,20 @@
+{{- if .Values.namespaces }}
+  {{- range .Values.namespaces }}
+  {{- if and (ne . $.Release.Namespace) (not (lookup "v1" "Namespace" "" .)) }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/part-of: argocd
+    created-by: argocd-chart
+    type: application-namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+    helm.sh/resource-policy: keep
+  {{- end }}
+  {{- end }}
+  {{- end }}

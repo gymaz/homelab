@@ -1,0 +1,11 @@
+apiVersion: v3
+name: grafana
+description: Grafana deployment
+type: application
+version: 9.3.2
+appVersion: "12.1.0"
+
+dependencies:
+  - name: grafana
+    version: "9.3.2"
+    repository: "https://grafana.github.io/helm-charts"

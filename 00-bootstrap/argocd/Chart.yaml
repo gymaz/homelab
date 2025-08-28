@@ -1,0 +1,20 @@
+apiVersion: v3
+name: argocd
+description: ArgoCD GitOps controller for homelab
+type: application
+version: 8.3.0
+appVersion: "3.1.10"
+
+dependencies:
+  - name: argo-cd
+    version: "8.3.0"
+    repository: "https://argoproj.github.io/argo-helm"
+
+maintainers:
+  - name: homelab
+    email: admin@homelab.local
+
+keywords:
+  - gitops
+  - argocd
+  - continuous-deployment

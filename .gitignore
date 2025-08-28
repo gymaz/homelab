@@ -1,0 +1,37 @@
+# Secrets
+*.secret
+*.key
+*.pem
+
+# My bootstrap secrets
+argocd-secret.yaml
+
+# Helm
+*/charts/
+**/charts/
+Chart.lock
+
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Terraform
+*.tfstate*
+.terraform/
+
+# Kubernetes
+kubeconfig*
+config.yaml
+
+# Backup files
+*.bak
+*.tmp
+*.tgz

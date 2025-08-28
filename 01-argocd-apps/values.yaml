@@ -1,0 +1,4 @@
+namespaces:
+  - grafana
+  - external-secrets
+  - vault

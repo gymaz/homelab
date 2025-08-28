@@ -1,0 +1,21 @@
+apiVersion: v3
+name: external-secrets
+description: External Secrets Operator for homelab
+type: application
+version: 0.19.2
+appVersion: "0.19.2"
+
+dependencies:
+  - name: external-secrets
+    version: "0.19.2"
+    repository: "https://charts.external-secrets.io"
+
+maintainers:
+  - name: homelab
+    email: admin@homelab.local
+
+keywords:
+  - secrets
+  - external-secrets
+  - vault
+  - operator
