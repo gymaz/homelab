@@ -1,0 +1,1 @@
+kubectl exec -it vault-0 -n vault -- /bin/sh

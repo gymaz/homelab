@@ -19,7 +19,7 @@ Le projet suit une structure en couches pour organiser les déploiements:
 - k3d
 - kubectl
 - helm 3.x
-- argoCD CLI (optionnel)
+- argoCD CLI
 
 ## Installation
 

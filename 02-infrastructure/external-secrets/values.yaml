@@ -603,3 +603,13 @@ dnsConfig: {}
 
 # -- Any extra pod spec on the deployment
 podSpecExtra: {}
+
+# Grafana secret
+externalSecrets:
+  grafana:
+    enabled: true
+    namespace: grafana
+    secretName: grafana-admin-secret
+    vault:
+      key: grafana
+      property: admin-password
