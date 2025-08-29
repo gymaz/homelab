@@ -1,5 +1,7 @@
 #!/bin/bash
 
+Si une application ArgoCD n'existe pas → Skip avec message d'avertissement
+
 port_forward() {
     echo "Starting port-forward for $1..."
     kubectl port-forward $2 -n $3 $4 &

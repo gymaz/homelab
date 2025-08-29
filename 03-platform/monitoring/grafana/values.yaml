@@ -1,7 +1,7 @@
 grafana:
   admin:
-    existingSecret: "grafana-admin-secret"
-    passwordKey: "admin-password"
+    existingSecret: "TODO-ESO"
+    passwordKey: "TODO-ESO"
 
   persistence:
     enabled: true
