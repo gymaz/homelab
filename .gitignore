@@ -5,6 +5,7 @@
 
 # My bootstrap secrets
 argocd-secret.yaml
+vault-credentials.txt
 
 # Helm
 */charts/
