@@ -8,15 +8,15 @@ VAULT_KEYS_FILE="/tmp/vault-keys.json"
 echo "🚀 Bootstrap Vault complet - Init, Unseal, Auth & Secrets"
 
 # Fonction pour attendre que le pod soit ready
-wait_for_pod() {
-    echo "⏳ Attente que le pod vault-0 soit prêt..."
-    kubectl wait --for=condition=ready pod/$VAULT_POD -n $VAULT_NAMESPACE --timeout=300s
-}
+#wait_for_pod() {
+#    echo "⏳ Attente que le pod vault-0 soit prêt..."
+#    kubectl wait --for=condition=ready pod/$VAULT_POD -n $VAULT_NAMESPACE --timeout=300s
+#}
 
 # Fonction pour vérifier si Vault est initialisé
 is_vault_initialized() {
     kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c '
-        export VAULT_ADDR="http://vault-backend:8200"
+        export VAULT_ADDR="http://vault:8200"
         export VAULT_SKIP_VERIFY=true
         vault status -format=json 2>/dev/null | jq -r ".initialized // false"
     ' 2>/dev/null || echo "false"
@@ -25,14 +25,14 @@ is_vault_initialized() {
 # Fonction pour vérifier si Vault est unsealed
 is_vault_unsealed() {
     kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c '
-        export VAULT_ADDR="http://vault-backend:8200"
+        export VAULT_ADDR="http://vault:8200"
         export VAULT_SKIP_VERIFY=true
         vault status -format=json 2>/dev/null | jq -r ".sealed // true"
     ' 2>/dev/null || echo "true"
 }
 
-# Attendre que le pod soit prêt
-wait_for_pod
+## Attendre que le pod soit prêt
+#wait_for_pod
 
 # Étape 1: Vérifier l'état de Vault
 echo "🔍 Vérification de l'état de Vault..."
@@ -46,7 +46,7 @@ echo "   - Scellé: $SEALED"
 if [ "$INITIALIZED" = "false" ]; then
     echo "🔧 Initialisation de Vault..."
     kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c '
-        export VAULT_ADDR="http://vault-backend:8200"
+        export VAULT_ADDR="http://vault:8200"
         export VAULT_SKIP_VERIFY=true
         vault operator init -format=json
     ' > "$VAULT_KEYS_FILE"
@@ -58,7 +58,9 @@ if [ "$INITIALIZED" = "false" ]; then
     UNSEAL_KEY_1=$(jq -r '.unseal_keys_b64[0]' "$VAULT_KEYS_FILE")
     UNSEAL_KEY_2=$(jq -r '.unseal_keys_b64[1]' "$VAULT_KEYS_FILE")
     UNSEAL_KEY_3=$(jq -r '.unseal_keys_b64[2]' "$VAULT_KEYS_FILE")
-    
+    UNSEAL_KEY_4=$(jq -r '.unseal_keys_b64[3]' "$VAULT_KEYS_FILE")
+    UNSEAL_KEY_5=$(jq -r '.unseal_keys_b64[4]' "$VAULT_KEYS_FILE")
+
     echo "🔑 Token root: $ROOT_TOKEN"
     echo "🗝️  Clés d'unsealing sauvegardées"
     
@@ -72,11 +74,15 @@ else
         read -p "Clé unseal 1: " UNSEAL_KEY_1  
         read -p "Clé unseal 2: " UNSEAL_KEY_2
         read -p "Clé unseal 3: " UNSEAL_KEY_3
+        read -p "Clé unseal 4: " UNSEAL_KEY_4
+        read -p "Clé unseal 5: " UNSEAL_KEY_5
     else
         ROOT_TOKEN=$(jq -r '.root_token' "$VAULT_KEYS_FILE")
         UNSEAL_KEY_1=$(jq -r '.unseal_keys_b64[0]' "$VAULT_KEYS_FILE")
         UNSEAL_KEY_2=$(jq -r '.unseal_keys_b64[1]' "$VAULT_KEYS_FILE")
         UNSEAL_KEY_3=$(jq -r '.unseal_keys_b64[2]' "$VAULT_KEYS_FILE")
+        UNSEAL_KEY_4=$(jq -r '.unseal_keys_b64[3]' "$VAULT_KEYS_FILE")
+        UNSEAL_KEY_5=$(jq -r '.unseal_keys_b64[4]' "$VAULT_KEYS_FILE")
     fi
 fi
 
@@ -85,7 +91,7 @@ if [ "$SEALED" = "true" ]; then
     echo "🔓 Unsealing de Vault..."
     
     kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
-        export VAULT_ADDR=\"http://vault-backend:8200\"
+        export VAULT_ADDR=\"http://vault:8200\"
         export VAULT_SKIP_VERIFY=true
         vault operator unseal $UNSEAL_KEY_1
         vault operator unseal $UNSEAL_KEY_2  
@@ -100,7 +106,7 @@ fi
 # Étape 4: Authentification et activation des secrets engines
 echo "🔐 Authentification et configuration..."
 kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
-    export VAULT_ADDR=\"http://vault-backend:8200\"
+    export VAULT_ADDR=\"http://vault:8200\"
     export VAULT_SKIP_VERIFY=true
     export VAULT_TOKEN=\"$ROOT_TOKEN\"
     
@@ -123,7 +129,7 @@ kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
 echo "🗝️  Création des secrets..."
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
-    export VAULT_ADDR=\"http://vault-backend:8200\"
+    export VAULT_ADDR=\"http://vault:8200\"
     export VAULT_SKIP_VERIFY=true
     export VAULT_TOKEN=\"$ROOT_TOKEN\"
 
@@ -151,7 +157,7 @@ kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
 
 # Étape 6: Sauvegarder les informations importantes
 echo "💾 Sauvegarde des informations de connexion..."
-cat > vault-credentials.txt << EOF
+cat > ../../vault-credentials.txt << EOF
 === INFORMATIONS DE CONNEXION VAULT ===
 Date: $(date)
 
@@ -161,6 +167,8 @@ Clés d'unsealing:
 - Clé 1: $UNSEAL_KEY_1  
 - Clé 2: $UNSEAL_KEY_2
 - Clé 3: $UNSEAL_KEY_3
+- Clé 4: $UNSEAL_KEY_4
+- Clé 5: $UNSEAL_KEY_5
 
 === COMMANDES UTILES ===
 # Port-forward pour accès local:
@@ -178,7 +186,6 @@ echo "🎉 Bootstrap Vault terminé avec succès!"
 echo ""
 echo "📋 Prochaines étapes:"
 echo "   1. Consultez vault-credentials.txt pour les informations de connexion"
-echo "   2. Lancez: kubectl port-forward svc/vault 8200:8200 -n vault"
 echo "   3. Accédez à https://localhost:8200"
 echo "   4. Connectez-vous avec le token root"
 echo ""

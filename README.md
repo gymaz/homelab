@@ -26,7 +26,7 @@ Le projet suit une structure en couches pour organiser les déploiements:
 ### 0. Configurer ses secrets Github
 
 ```bash
-mv argocd-secret-template.yaml argocd-secret.yaml
+cp argocd-secret-template.yaml argocd-secret.yaml
 ```
 Et modifier les valeurs username & token par ses credentials Github
 
@@ -130,6 +130,7 @@ argocd app sync <app-name>
 ## TODO
 
 - Finaliser l'intégration de Vault/External Secrets
+- Gérer le secret argocd/github (base64 encoded!)
 - Intégrer un Runner Github
 - Builder les images du projet SRE-Challenge
 - Faire le lien Github Action/ArgoCD

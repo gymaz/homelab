@@ -44,20 +44,17 @@ echo "🚀 Deploying App-of-Apps (étape 2/2)..."
 kubectl apply -f app-of-apps-manual.yaml
 
 echo "🔍 Checking configuration..."
-echo "=== Applications ArgoCD ==="
-kubectl get applications -n argocd
-
 echo "=== Checking Repository Secrets ==="
 kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
 
 echo "✅ Bootstrap complete!"
-echo "👤 Admin password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo 'Secret not found')"
+echo "👤 ArgoCD Admin password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo 'Secret not found')"
 
-echo " Waiting for ArgoCD to synchronize and then launch port-forward"
+echo " Waiting for ArgoCD to synchronize and then bootstrap Vault and Secrets creation"
 echo "300 seconds ⏳"
 sleep 300
 
-k get applications -A
+bash ../vault/vault_bootstrap.sh
 
 # Démarrer le port-forward
 bash ../../port-forward.sh
