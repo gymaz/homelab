@@ -1,0 +1,21 @@
+apiVersion: v3
+name: vault
+description: HashiCorp Vault for secrets management in homelab
+type: application
+version: 0.30.1
+appVersion: "1.20.1"
+
+dependencies:
+  - name: vault
+    version: "0.30.1"
+    repository: "https://helm.releases.hashicorp.com"
+
+maintainers:
+  - name: homelab
+    email: admin@homelab.local
+
+keywords:
+  - secrets
+  - vault
+  - hashicorp
+  - security

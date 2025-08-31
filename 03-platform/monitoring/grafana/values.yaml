@@ -1,0 +1,21 @@
+grafana:
+  admin:
+
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  service:
+    type: NodePort
+
+  ingress:
+    enabled: true
+    hosts:
+      - grafana.homelab.local
+
+serviceAccount:
+  create: true
+  name: grafana
+  annotations:
+    vault.hashicorp.com/role: "grafana"
+    prometheus.io/scrape: 'true'

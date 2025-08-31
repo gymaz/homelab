@@ -1,0 +1,38 @@
+# Secrets
+*.secret
+*.key
+*.pem
+
+# My bootstrap secrets
+my-secrets-values.yaml
+vault-credentials.txt
+
+# Helm
+*/charts/
+**/charts/
+Chart.lock
+
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Terraform
+*.tfstate*
+.terraform/
+
+# Kubernetes
+kubeconfig*
+config.yaml
+
+# Backup files
+*.bak
+*.tmp
+*.tgz

@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+
+  source:
+    path: 03-platform/monitoring/grafana
+    repoURL: https://github.com/gymaz/homelab
+    targetRevision: develop
+    helm:
+      valueFiles:
+        - values.yaml
+        - ../../../my-secrets-values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grafana
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
