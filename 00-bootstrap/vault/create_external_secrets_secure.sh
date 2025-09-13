@@ -8,14 +8,14 @@ VAULT_POD="vault-0"
 get_root_token() {
     # 1. Variable d'environnement (pour CI/CD)
     if [ ! -z "${VAULT_ROOT_TOKEN:-}" ]; then
-        echo "✅ Token root récupéré depuis la variable d'environnement"
+        echo "✅ Token root récupéré depuis la variable d'environnement" >&2
         echo "$VAULT_ROOT_TOKEN"
         return 0
     fi
     
     # 2. Secret Kubernetes (si créé par le bootstrap)
     if kubectl get secret vault-root-credentials -n vault >/dev/null 2>&1; then
-        echo "✅ Token root récupéré depuis le secret Kubernetes"
+        echo "✅ Token root récupéré depuis le secret Kubernetes" >&2
         kubectl get secret vault-root-credentials -n vault -o jsonpath='{.data.root-token}' | base64 -d
         return 0
     fi
@@ -23,21 +23,24 @@ get_root_token() {
     # 3. Fichier de credentials local
     local credentials_file="../../vault-credentials.txt"
     if [ -f "$credentials_file" ]; then
-        local token=$(grep "Root Token:" "$credentials_file" | awk '{print $3}')
-        if [ ! -z "$token" ]; then
-            echo "✅ Token root récupéré depuis $credentials_file"
+        # Méthode plus robuste pour extraire le token
+        local token=$(grep "Root Token:" "$credentials_file" | sed 's/.*Root Token: *//' | tr -d '\r\n\t ')
+        if [ ! -z "$token" ] && [[ "$token" =~ ^hvs\. ]]; then
+            echo "✅ Token root récupéré depuis $credentials_file" >&2
             echo "$token"
             return 0
+        else
+            echo "⚠️  Token invalide dans $credentials_file (ne commence pas par hvs.)" >&2
         fi
     fi
     
     # 4. Demander à l'utilisateur en interactif
-    echo "❌ Aucun token root trouvé automatiquement"
-    echo "💡 Sources vérifiées:"
-    echo "   - Variable d'environnement VAULT_ROOT_TOKEN"
-    echo "   - Secret Kubernetes vault-root-credentials"
-    echo "   - Fichier ../../vault-credentials.txt"
-    echo ""
+    echo "❌ Aucun token root trouvé automatiquement" >&2
+    echo "💡 Sources vérifiées:" >&2
+    echo "   - Variable d'environnement VAULT_ROOT_TOKEN" >&2
+    echo "   - Secret Kubernetes vault-root-credentials" >&2
+    echo "   - Fichier ../../vault-credentials.txt" >&2
+    echo "" >&2
     read -p "🔑 Veuillez saisir le token root Vault: " token
     echo "$token"
 }
@@ -45,10 +48,15 @@ get_root_token() {
 # Récupérer le token root
 ROOT_TOKEN=$(get_root_token)
 
-if [ -z "$ROOT_TOKEN" ]; then
-    echo "❌ Impossible de récupérer le token root"
+# Vérifier que le token est valide
+if [ -z "$ROOT_TOKEN" ] || [[ ! "$ROOT_TOKEN" =~ ^hvs\. ]]; then
+    echo "❌ Token root invalide ou manquant"
+    echo "🔍 Token reçu: '$ROOT_TOKEN'"
     exit 1
 fi
+
+echo "🔍 Debug: Token length = ${#ROOT_TOKEN}"
+echo "🔍 Debug: Token preview = ${ROOT_TOKEN:0:10}..."
 
 echo "🔐 Création des secrets Kubernetes pour External Secrets..."
 
