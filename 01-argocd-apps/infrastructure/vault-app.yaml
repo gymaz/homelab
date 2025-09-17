@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: vault
     app.kubernetes.io/part-of: infrastructure
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"  # Se déploie avant External Secrets
+    argocd.argoproj.io/sync-wave: "-3"  # Se déploie avant External Secrets
 spec:
   project: default
   

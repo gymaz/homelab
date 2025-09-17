@@ -1,0 +1,8 @@
+{{- if .Values.externalSecrets.grafana.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.externalSecrets.grafana.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+  {{- end }}

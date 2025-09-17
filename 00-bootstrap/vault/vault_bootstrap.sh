@@ -179,13 +179,133 @@ https://localhost:8200
 
 # Login avec token root dans l'UI
 EOF
+# Étape 7: Créer les secrets Kubernetes pour External Secrets
+echo "🔐 Création des secrets Kubernetes pour External Secrets..."
 
-echo "✅ Informations sauvegardées dans vault-credentials.txt"
+# Créer une policy dédiée pour External Secrets
+kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
+    export VAULT_ADDR=\"http://vault:8200\"
+    export VAULT_SKIP_VERIFY=true
+    export VAULT_TOKEN=\"$ROOT_TOKEN\"
+
+    echo \"📝 Création de la policy external-secrets...\"
+    vault policy write external-secrets - <<EOF
+path \"secret/data/*\" {
+  capabilities = [\"read\"]
+}
+path \"secret/metadata/*\" {
+  capabilities = [\"list\", \"read\"]
+}
+EOF
+
+    echo \"🔑 Création du token pour External Secrets...\"
+    vault token create -policy=external-secrets -ttl=8760h -format=json
+" > /tmp/external-secrets-token.json
+
+# Extraire le token
+EXTERNAL_SECRETS_TOKEN=$(jq -r '.auth.client_token' /tmp/external-secrets-token.json)
+
+# Créer le secret Kubernetes dans le namespace default
+echo "📦 Création du secret vault-token dans le namespace default..."
+kubectl create secret generic vault-token \
+  --from-literal=token="$EXTERNAL_SECRETS_TOKEN" \
+  -n default \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✅ Secret vault-token créé avec succès"
+
+# Nettoyer
+rm -f /tmp/external-secrets-token.json
+
 echo ""
+echo "🎯 Configuration External Secrets terminée !"
+echo "✅ Informations sauvegardées dans vault-credentials.txt"
+
+# Étape 7: Créer les secrets Kubernetes pour External Secrets
+echo "🔐 Création des secrets Kubernetes pour External Secrets..."
+
+# S'assurer d'utiliser le bon token root (le plus récent)
+if [ -f "../../vault-credentials.txt" ]; then
+    CURRENT_ROOT_TOKEN=$(grep "Root Token:" ../../vault-credentials.txt | awk '{print $3}')
+    if [ ! -z "$CURRENT_ROOT_TOKEN" ]; then
+        ROOT_TOKEN="$CURRENT_ROOT_TOKEN"
+        echo "✅ Token root mis à jour depuis vault-credentials.txt"
+    fi
+fi
+
+# Attendre un peu pour s'assurer que Vault est complètement prêt
+sleep 5
+
+# Créer une policy dédiée pour External Secrets
+echo "📝 Création de la policy external-secrets..."
+kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
+    export VAULT_ADDR=\"http://vault:8200\"
+    export VAULT_SKIP_VERIFY=true
+    export VAULT_TOKEN=\"$ROOT_TOKEN\"
+    
+    vault policy write external-secrets - <<EOF
+path \"secret/data/*\" {
+  capabilities = [\"read\"]
+}
+path \"secret/metadata/*\" {
+  capabilities = [\"list\", \"read\"]
+}
+EOF
+"
+
+echo "🔑 Création du token pour External Secrets..."
+# Méthode alternative : capturer la sortie complète et parser manuellement
+TOKEN_CREATION_OUTPUT=$(kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- sh -c "
+    export VAULT_ADDR=\"http://vault:8200\"
+    export VAULT_SKIP_VERIFY=true  
+    export VAULT_TOKEN=\"$ROOT_TOKEN\"
+    
+    # Créer le token sans format JSON pour éviter les problèmes de parsing
+    vault token create -policy=external-secrets -ttl=8760h
+" 2>&1)
+
+echo "Sortie de la création de token:"
+echo "$TOKEN_CREATION_OUTPUT"
+
+# Extraire le token de la sortie texte (format standard de Vault)
+EXTERNAL_SECRETS_TOKEN=$(echo "$TOKEN_CREATION_OUTPUT" | grep "token " | head -1 | awk '{print $2}')
+
+if [ ! -z "$EXTERNAL_SECRETS_TOKEN" ] && [ "$EXTERNAL_SECRETS_TOKEN" != "" ]; then
+    echo "✅ Token extrait: ${EXTERNAL_SECRETS_TOKEN:0:20}..."
+    
+    echo "📦 Création du secret vault-token dans le namespace default..."
+    kubectl create secret generic vault-token \
+      --from-literal=token="$EXTERNAL_SECRETS_TOKEN" \
+      -n default \
+      --dry-run=client -o yaml | kubectl apply -f -
+    
+    echo "✅ Secret vault-token créé avec succès"
+    
+    # Créer aussi un secret avec le root token pour l'automatisation
+    echo "📦 Création du secret vault-root-credentials pour l'automatisation..."
+    kubectl create secret generic vault-root-credentials \
+      --from-literal=root-token="$ROOT_TOKEN" \
+      -n vault \
+      --dry-run=client -o yaml | kubectl apply -f -
+    
+    echo "✅ Secret vault-root-credentials créé"
+    
+else
+    echo "❌ Impossible d'extraire le token"
+    echo "🔄 Utilisation du root token comme fallback..."
+    
+    kubectl create secret generic vault-token \
+      --from-literal=token="$ROOT_TOKEN" \
+      -n default \
+      --dry-run=client -o yaml | kubectl apply -f -
+    
+    echo "⚠️  Secret vault-token créé avec le root token (changez cela en production!)"
+fi
 echo "🎉 Bootstrap Vault terminé avec succès!"
 echo ""
 echo "📋 Prochaines étapes:"
 echo "   1. Consultez vault-credentials.txt pour les informations de connexion"
+echo "   2. Vérifiez que le ClusterSecretStore fonctionne: kubectl describe clustersecretstore vault-backend"
 echo "   3. Accédez à https://localhost:8200"
 echo "   4. Connectez-vous avec le token root"
 echo ""

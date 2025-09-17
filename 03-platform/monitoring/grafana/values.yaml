@@ -1,5 +1,7 @@
 grafana:
   admin:
+    existingSecret: "grafana-admin-secret"
+    passwordKey: "admin-password"
 
   persistence:
     enabled: true

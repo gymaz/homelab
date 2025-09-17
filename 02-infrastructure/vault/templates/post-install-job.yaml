@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-external-secrets-setup
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    spec:
+      serviceAccountName: vault-external-secrets-setup
+      restartPolicy: OnFailure
+      containers:
+      - name: setup
+        image: hashicorp/vault:1.20.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "🔍 Attente que Vault soit prêt..."
+          
+          # Attendre que Vault soit accessible
+          until wget -q --spider http://vault:8200/v1/sys/health; do
+            echo "⏳ Vault n'est pas encore prêt, attente..."
+            sleep 10
+          done
+          
+          echo "✅ Vault est accessible"
+          
+          # Vérifier si Vault est initialisé et unsealed
+          export VAULT_ADDR="http://vault:8200"
+          export VAULT_SKIP_VERIFY=true
+          
+          # Attendre que Vault soit unsealed
+          until vault status | grep -q "Sealed.*false"; do
+            echo "⏳ Vault est encore sealed, attente..."
+            sleep 10
+          done
+          
+          echo "🔐 Configuration des secrets pour External Secrets..."
+          
+          # Utiliser le root token (à améliorer avec une approche plus sécurisée)
+          export VAULT_TOKEN="${ROOT_TOKEN}"
+          
+          # Créer la policy
+          vault policy write external-secrets - <<EOF
+          path "secret/data/*" {
+            capabilities = ["read"]
+          }
+          path "secret/metadata/*" {
+            capabilities = ["list", "read"]
+          }
+          EOF
+          
+          # Créer le token
+          TOKEN_JSON=$(vault token create -policy=external-secrets -ttl=8760h -format=json)
+          EXTERNAL_SECRETS_TOKEN=$(echo "$TOKEN_JSON" | jq -r '.auth.client_token')
+          
+          # Créer le secret Kubernetes
+          kubectl create secret generic vault-token \
+            --from-literal=token="$EXTERNAL_SECRETS_TOKEN" \
+            -n default \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✅ Secret vault-token créé avec succès"
+        env:
+        - name: ROOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-root-token
+              key: token
+              optional: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-external-secrets-setup
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-external-secrets-setup
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-external-secrets-setup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-external-secrets-setup
+subjects:
+- kind: ServiceAccount
+  name: vault-external-secrets-setup
+  namespace: {{ .Release.Namespace }}

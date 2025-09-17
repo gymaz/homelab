@@ -1,0 +1,110 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-external-secrets-setup-{{ now | date "20060102150405" }}
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: vault-external-secrets-setup
+      restartPolicy: Never
+      containers:
+      - name: setup
+        image: hashicorp/vault:1.20.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Installation des outils nécessaires
+          apk add --no-cache curl jq kubectl
+          
+          echo "🔍 Attente que Vault soit prêt..."
+          export VAULT_ADDR="http://vault.vault.svc.cluster.local:8200"
+          export VAULT_SKIP_VERIFY=true
+          
+          # Attendre que Vault soit accessible et unsealed
+          for i in {1..30}; do
+            if vault status 2>/dev/null | grep -q "Sealed.*false"; then
+              echo "✅ Vault est prêt et unsealed"
+              break
+            fi
+            echo "⏳ Attente... ($i/30)"
+            sleep 10
+          done
+          
+          # Récupérer le root token depuis le secret (créé par le script de bootstrap)
+          if kubectl get secret vault-root-credentials -n vault >/dev/null 2>&1; then
+            export VAULT_TOKEN=$(kubectl get secret vault-root-credentials -n vault -o jsonpath='{.data.root-token}' | base64 -d)
+          else
+            echo "❌ Secret vault-root-credentials non trouvé"
+            exit 1
+          fi
+          
+          echo "🔐 Configuration des secrets pour External Secrets..."
+          
+          # Créer la policy
+          vault policy write external-secrets - <<EOF
+          path "secret/data/*" {
+            capabilities = ["read"]  
+          }
+          path "secret/metadata/*" {
+            capabilities = ["list", "read"]
+          }
+          EOF
+          
+          # Créer le token
+          TOKEN_JSON=$(vault token create -policy=external-secrets -ttl=8760h -format=json)
+          EXTERNAL_SECRETS_TOKEN=$(echo "$TOKEN_JSON" | jq -r '.auth.client_token')
+          
+          # Créer le secret Kubernetes dans le namespace default
+          kubectl create secret generic vault-token \
+            --from-literal=token="$EXTERNAL_SECRETS_TOKEN" \
+            -n default \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✅ Secret vault-token créé avec succès dans le namespace default"
+          echo "🎯 Configuration terminée !"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-external-secrets-setup
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-external-secrets-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "get", "update", "patch", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-external-secrets-setup
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-external-secrets-setup
+subjects:
+- kind: ServiceAccount
+  name: vault-external-secrets-setup
+  namespace: vault
